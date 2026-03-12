@@ -7,7 +7,6 @@ from urllib.parse import urljoin
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -66,13 +65,7 @@ def extract_email_from_website(url):
 
 def run_scraper(query):
 
-    # ---------------- CHROME SETUP FOR RENDER ----------------
-
-   
-   
-
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
+    # ---------- CHROME SETUP FOR RAILWAY ----------
 
     options = webdriver.ChromeOptions()
 
@@ -82,14 +75,19 @@ def run_scraper(query):
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
 
-    # IMPORTANT: tell selenium where chromium is installed
     options.binary_location = "/usr/bin/chromium"
 
     service = Service("/usr/bin/chromedriver")
 
     driver = webdriver.Chrome(service=service, options=options)
 
-    # Accept cookies if visible
+    wait = WebDriverWait(driver, 20)
+
+    # ---------- OPEN GOOGLE MAPS ----------
+
+    driver.get("https://www.google.com/maps")
+
+    # Accept cookies if shown
     try:
         consent = wait.until(
             EC.element_to_be_clickable(
@@ -100,7 +98,8 @@ def run_scraper(query):
     except:
         pass
 
-    # Search
+    # ---------- SEARCH ----------
+
     search_box = wait.until(
         EC.presence_of_element_located((By.NAME, "q"))
     )
@@ -111,7 +110,8 @@ def run_scraper(query):
 
     time.sleep(4)
 
-    # Scroll results
+    # ---------- SCROLL RESULTS ----------
+
     scrollable_div = wait.until(
         EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]'))
     )
