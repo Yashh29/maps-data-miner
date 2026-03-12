@@ -67,25 +67,28 @@ def run_scraper(query):
 
     # ---------- CHROME SETUP FOR RAILWAY ----------
 
-    options = webdriver.ChromeOptions()
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.chrome.options import Options
+
+    options = Options()
 
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    options.add_argument("--remote-debugging-port=9222")
     options.add_argument("--window-size=1920,1080")
 
+    # Tell Selenium where Chromium is
     options.binary_location = "/usr/bin/chromium"
 
-    service = Service("/usr/bin/chromedriver")
+    # Tell Selenium where chromedriver is
+    service = Service(executable_path="/usr/bin/chromedriver")
 
     driver = webdriver.Chrome(service=service, options=options)
 
     wait = WebDriverWait(driver, 20)
-
-    # ---------- OPEN GOOGLE MAPS ----------
-
-    driver.get("https://www.google.com/maps")
 
     # Accept cookies if shown
     try:
