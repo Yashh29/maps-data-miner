@@ -71,6 +71,9 @@ def run_scraper(query):
    
    
 
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+
     options = webdriver.ChromeOptions()
 
     options.add_argument("--headless=new")
@@ -79,15 +82,12 @@ def run_scraper(query):
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
 
+    # IMPORTANT: tell selenium where chromium is installed
     options.binary_location = "/usr/bin/chromium"
 
     service = Service("/usr/bin/chromedriver")
 
     driver = webdriver.Chrome(service=service, options=options)
-
-    wait = WebDriverWait(driver, 20)
-
-    driver.get("https://www.google.com/maps")
 
     # Accept cookies if visible
     try:
