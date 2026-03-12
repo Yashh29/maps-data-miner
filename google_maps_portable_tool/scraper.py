@@ -7,10 +7,10 @@ from urllib.parse import urljoin
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
 
 EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
@@ -32,7 +32,7 @@ def extract_email_from_website(url):
 
         emails_found = set()
 
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=6)
         html = response.text
 
         emails_found.update(get_emails_from_html(html))
@@ -47,16 +47,12 @@ def extract_email_from_website(url):
             contact_url = urljoin(url, contact_match.group(1))
 
             try:
-
-                contact_response = requests.get(contact_url, timeout=5)
+                contact_response = requests.get(contact_url, timeout=6)
                 contact_html = contact_response.text
 
                 emails_found.update(get_emails_from_html(contact_html))
 
-                mailtos_contact = re.findall(
-                    r"mailto:([^\"]+)", contact_html
-                )
-
+                mailtos_contact = re.findall(r"mailto:([^\"]+)", contact_html)
                 emails_found.update(mailtos_contact)
 
             except:
@@ -70,39 +66,39 @@ def extract_email_from_website(url):
 
 def run_scraper(query):
 
-    # ---------------- CHROME OPTIONS ----------------
+    # ---------------- CHROME SETUP FOR RENDER ----------------
 
-    options = webdriver.ChromeOptions()
+    chrome_options = Options()
 
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
+    chrome_options.binary_location = "/usr/bin/chromium"
+
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
 
     driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=options
+        service=Service("/usr/bin/chromedriver"),
+        options=chrome_options
     )
+
     wait = WebDriverWait(driver, 20)
 
     driver.get("https://www.google.com/maps")
 
-    # Accept cookies
+    # Accept cookies if visible
     try:
-
         consent = wait.until(
             EC.element_to_be_clickable(
                 (By.XPATH, '//button[contains(text(),"Accept")]')
             )
         )
-
         consent.click()
-
     except:
         pass
 
-    # Search query
+    # Search
     search_box = wait.until(
         EC.presence_of_element_located((By.NAME, "q"))
     )
@@ -113,6 +109,7 @@ def run_scraper(query):
 
     time.sleep(4)
 
+    # Scroll results
     scrollable_div = wait.until(
         EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]'))
     )
@@ -138,7 +135,7 @@ def run_scraper(query):
 
         last_height = new_height
 
-    listings = driver.find_elements(By.XPATH, '//a[contains(@href, "/place")]')
+    listings = driver.find_elements(By.XPATH, '//a[contains(@href,"/place")]')
 
     data = []
     unique_links = set()
@@ -165,9 +162,7 @@ def run_scraper(query):
             ).text
 
             try:
-                rating = driver.find_element(
-                    By.XPATH, '//span[@class="MW4etd"]'
-                ).text
+                rating = driver.find_element(By.XPATH, '//span[@class="MW4etd"]').text
             except:
                 rating = ""
 
@@ -198,7 +193,6 @@ def run_scraper(query):
             email = extract_email_from_website(website)
 
             data.append({
-
                 "name": name,
                 "rating": rating,
                 "address": address,
@@ -207,7 +201,6 @@ def run_scraper(query):
                 "email": email,
                 "maps_link": link,
                 "source_query": query
-
             })
 
         except:
