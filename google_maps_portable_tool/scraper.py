@@ -2,6 +2,7 @@ import time
 import re
 import requests
 import pandas as pd
+import os
 from urllib.parse import urljoin
 
 from selenium import webdriver
@@ -10,6 +11,9 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+# For local machine only
+from webdriver_manager.chrome import ChromeDriverManager
 
 
 EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
@@ -65,32 +69,35 @@ def extract_email_from_website(url):
 
 def run_scraper(query):
 
-    # ---------- CHROME SETUP FOR RAILWAY ----------
-
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.chrome.options import Options
-
-    options = Options()
+    options = webdriver.ChromeOptions()
 
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
-    options.add_argument("--remote-debugging-port=9222")
     options.add_argument("--window-size=1920,1080")
 
-    # Tell Selenium where Chromium is
-    options.binary_location = "/usr/bin/chromium"
+    # ---------- RAILWAY DEPLOYMENT ----------
+    if os.path.exists("/usr/bin/chromium"):
 
-    # Tell Selenium where chromedriver is
-    service = Service(executable_path="/usr/bin/chromedriver")
+        options.binary_location = "/usr/bin/chromium"
 
-    driver = webdriver.Chrome(service=service, options=options)
+        service = Service("/usr/bin/chromedriver")
+
+        driver = webdriver.Chrome(service=service, options=options)
+
+    # ---------- LOCAL MACHINE ----------
+    else:
+
+        service = Service(ChromeDriverManager().install())
+
+        driver = webdriver.Chrome(service=service, options=options)
 
     wait = WebDriverWait(driver, 20)
 
-    # Accept cookies if shown
+    driver.get("https://www.google.com/maps")
+
+    # Accept cookies if visible
     try:
         consent = wait.until(
             EC.element_to_be_clickable(
@@ -102,7 +109,6 @@ def run_scraper(query):
         pass
 
     # ---------- SEARCH ----------
-
     search_box = wait.until(
         EC.presence_of_element_located((By.NAME, "q"))
     )
@@ -114,7 +120,6 @@ def run_scraper(query):
     time.sleep(4)
 
     # ---------- SCROLL RESULTS ----------
-
     scrollable_div = wait.until(
         EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]'))
     )
