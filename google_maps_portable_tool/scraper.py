@@ -12,7 +12,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# For local machine only
+# only used locally
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -77,16 +77,20 @@ def run_scraper(query):
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
 
-    # ---------- RAILWAY DEPLOYMENT ----------
-    if os.path.exists("/usr/bin/chromium"):
+    # ---------------- RAILWAY / SERVER ----------------
+    if os.path.exists("/usr/bin/chromedriver"):
 
-        options.binary_location = "/usr/bin/chromium"
+        # chromium location can vary
+        if os.path.exists("/usr/bin/chromium"):
+            options.binary_location = "/usr/bin/chromium"
+        elif os.path.exists("/usr/bin/chromium-browser"):
+            options.binary_location = "/usr/bin/chromium-browser"
 
         service = Service("/usr/bin/chromedriver")
 
         driver = webdriver.Chrome(service=service, options=options)
 
-    # ---------- LOCAL MACHINE ----------
+    # ---------------- LOCAL MACHINE ----------------
     else:
 
         service = Service(ChromeDriverManager().install())
@@ -108,7 +112,8 @@ def run_scraper(query):
     except:
         pass
 
-    # ---------- SEARCH ----------
+    # ---------------- SEARCH ----------------
+
     search_box = wait.until(
         EC.presence_of_element_located((By.NAME, "q"))
     )
@@ -119,7 +124,8 @@ def run_scraper(query):
 
     time.sleep(4)
 
-    # ---------- SCROLL RESULTS ----------
+    # ---------------- SCROLL ----------------
+
     scrollable_div = wait.until(
         EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]'))
     )
