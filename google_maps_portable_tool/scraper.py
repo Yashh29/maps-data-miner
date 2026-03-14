@@ -65,7 +65,11 @@ def run_scraper(query):
 
     with sync_playwright() as p:
 
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
+
         page = browser.new_page()
 
         page.goto("https://www.google.com/maps")
@@ -75,16 +79,12 @@ def run_scraper(query):
         page.fill('input[name="q"]', query)
         page.keyboard.press("Enter")
 
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(5000)
 
-        # Scroll results
-        scrollable_div = page.locator('div[role="feed"]')
+        # Scroll the results panel
+        for _ in range(25):
 
-        last_height = 0
-
-        for _ in range(20):
-
-            page.mouse.wheel(0, 10000)
+            page.mouse.wheel(0, 8000)
             page.wait_for_timeout(2000)
 
         listings = page.locator('a[href*="/place"]').all()
@@ -95,37 +95,38 @@ def run_scraper(query):
 
                 link = listing.get_attribute("href")
 
-                if link in unique_links:
+                if not link or link in unique_links:
                     continue
 
                 unique_links.add(link)
 
                 listing.click()
 
-                page.wait_for_timeout(2000)
+                page.wait_for_timeout(2500)
 
+                # Extract fields safely
                 try:
-                    name = page.locator('h1.DUwDvf').inner_text()
+                    name = page.locator("h1.DUwDvf").first.inner_text(timeout=3000)
                 except:
                     name = ""
 
                 try:
-                    rating = page.locator('span.MW4etd').first.inner_text()
+                    rating = page.locator("span.MW4etd").first.inner_text(timeout=2000)
                 except:
                     rating = ""
 
                 try:
-                    address = page.locator('button[data-item-id="address"]').inner_text()
+                    address = page.locator('button[data-item-id="address"]').first.inner_text(timeout=2000)
                 except:
                     address = ""
 
                 try:
-                    phone = page.locator('button[data-item-id="phone"]').inner_text()
+                    phone = page.locator('button[data-item-id="phone"]').first.inner_text(timeout=2000)
                 except:
                     phone = ""
 
                 try:
-                    website = page.locator('a[data-item-id="authority"]').get_attribute("href")
+                    website = page.locator('a[data-item-id="authority"]').first.get_attribute("href", timeout=2000)
                 except:
                     website = ""
 
