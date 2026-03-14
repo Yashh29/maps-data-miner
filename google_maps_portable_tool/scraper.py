@@ -2,18 +2,9 @@ import time
 import re
 import requests
 import pandas as pd
-import os
 from urllib.parse import urljoin
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
-# only used locally
-from webdriver_manager.chrome import ChromeDriverManager
+from playwright.sync_api import sync_playwright
 
 
 EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
@@ -69,160 +60,92 @@ def extract_email_from_website(url):
 
 def run_scraper(query):
 
-    options = webdriver.ChromeOptions()
-
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-
-    # ---------------- RAILWAY / SERVER ----------------
-    if os.path.exists("/usr/bin/chromedriver"):
-
-        # chromium location can vary
-        if os.path.exists("/usr/bin/chromium"):
-            options.binary_location = "/usr/bin/chromium"
-        elif os.path.exists("/usr/bin/chromium-browser"):
-            options.binary_location = "/usr/bin/chromium-browser"
-
-        service = Service("/usr/bin/chromedriver")
-
-        driver = webdriver.Chrome(service=service, options=options)
-
-    # ---------------- LOCAL MACHINE ----------------
-    else:
-
-        service = Service(ChromeDriverManager().install())
-
-        driver = webdriver.Chrome(service=service, options=options)
-
-    wait = WebDriverWait(driver, 20)
-
-    driver.get("https://www.google.com/maps")
-
-    # Accept cookies if visible
-    try:
-        consent = wait.until(
-            EC.element_to_be_clickable(
-                (By.XPATH, '//button[contains(text(),"Accept")]')
-            )
-        )
-        consent.click()
-    except:
-        pass
-
-    # ---------------- SEARCH ----------------
-
-    search_box = wait.until(
-        EC.presence_of_element_located((By.NAME, "q"))
-    )
-
-    search_box.clear()
-    search_box.send_keys(query)
-    search_box.send_keys(Keys.ENTER)
-
-    time.sleep(4)
-
-    # ---------------- SCROLL ----------------
-
-    scrollable_div = wait.until(
-        EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]'))
-    )
-
-    last_height = 0
-
-    while True:
-
-        driver.execute_script(
-            'arguments[0].scrollTop = arguments[0].scrollHeight',
-            scrollable_div
-        )
-
-        time.sleep(2)
-
-        new_height = driver.execute_script(
-            'return arguments[0].scrollHeight',
-            scrollable_div
-        )
-
-        if new_height == last_height:
-            break
-
-        last_height = new_height
-
-    listings = driver.find_elements(By.XPATH, '//a[contains(@href,"/place")]')
-
     data = []
     unique_links = set()
 
-    for listing in listings:
+    with sync_playwright() as p:
 
-        try:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-            link = listing.get_attribute("href")
+        page.goto("https://www.google.com/maps")
 
-            if link in unique_links:
+        page.wait_for_selector('input[name="q"]')
+
+        page.fill('input[name="q"]', query)
+        page.keyboard.press("Enter")
+
+        page.wait_for_timeout(4000)
+
+        # Scroll results
+        scrollable_div = page.locator('div[role="feed"]')
+
+        last_height = 0
+
+        for _ in range(20):
+
+            page.mouse.wheel(0, 10000)
+            page.wait_for_timeout(2000)
+
+        listings = page.locator('a[href*="/place"]').all()
+
+        for listing in listings:
+
+            try:
+
+                link = listing.get_attribute("href")
+
+                if link in unique_links:
+                    continue
+
+                unique_links.add(link)
+
+                listing.click()
+
+                page.wait_for_timeout(2000)
+
+                try:
+                    name = page.locator('h1.DUwDvf').inner_text()
+                except:
+                    name = ""
+
+                try:
+                    rating = page.locator('span.MW4etd').first.inner_text()
+                except:
+                    rating = ""
+
+                try:
+                    address = page.locator('button[data-item-id="address"]').inner_text()
+                except:
+                    address = ""
+
+                try:
+                    phone = page.locator('button[data-item-id="phone"]').inner_text()
+                except:
+                    phone = ""
+
+                try:
+                    website = page.locator('a[data-item-id="authority"]').get_attribute("href")
+                except:
+                    website = ""
+
+                email = extract_email_from_website(website)
+
+                data.append({
+                    "name": name,
+                    "rating": rating,
+                    "address": address,
+                    "phone": phone,
+                    "website": website,
+                    "email": email,
+                    "maps_link": link,
+                    "source_query": query
+                })
+
+            except:
                 continue
 
-            unique_links.add(link)
-
-            driver.execute_script("arguments[0].click();", listing)
-
-            time.sleep(2)
-
-            name = wait.until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//h1[contains(@class,"DUwDvf")]')
-                )
-            ).text
-
-            try:
-                rating = driver.find_element(By.XPATH, '//span[@class="MW4etd"]').text
-            except:
-                rating = ""
-
-            try:
-                address = driver.find_element(
-                    By.XPATH,
-                    '//button[contains(@data-item-id,"address")]'
-                ).text.replace("", "")
-            except:
-                address = ""
-
-            try:
-                phone = driver.find_element(
-                    By.XPATH,
-                    '//button[contains(@data-item-id,"phone")]'
-                ).text.replace("", "")
-            except:
-                phone = ""
-
-            try:
-                website = driver.find_element(
-                    By.XPATH,
-                    '//a[@data-item-id="authority"]'
-                ).get_attribute("href")
-            except:
-                website = ""
-
-            email = extract_email_from_website(website)
-
-            data.append({
-                "name": name,
-                "rating": rating,
-                "address": address,
-                "phone": phone,
-                "website": website,
-                "email": email,
-                "maps_link": link,
-                "source_query": query
-            })
-
-        except:
-            continue
-
-    driver.quit()
+        browser.close()
 
     df = pd.DataFrame(data)
 
